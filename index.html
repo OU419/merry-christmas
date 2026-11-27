@@ -2206,13 +2206,19 @@
     phead.addEventListener('click', function (e) { e.stopPropagation(); toggle(); });
     volEl.addEventListener('input', function () { Music.setVol(Number(volEl.value) / 100); });
 
-    // 打开自动播放；若被浏览器策略拦截，第一次交互补启
-    setTimeout(function () { Music.start(); setTimeout(sync, 260); }, 280);
-    document.addEventListener('pointerdown', function () {
-      if (running()) return;
-      Music.resume();
-      setTimeout(sync, 160);
-    }, { passive: true });
+    // 桌面先尝试自动播放；手机/iOS 必须在"用户手势"里创建音频上下文，
+    // 否则上下文会被浏览器永久判定为不可唤醒（这就是手机上没声音的主因）
+    var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    if (!isTouch) setTimeout(function () { Music.start(); setTimeout(sync, 280); }, 280);
+    function unlock() {
+      if (userPaused) return;                    // 用户主动暂停过就别抢
+      if (Music.api().ctx === 'running') return; // 已经能出声
+      Music.start();                             // 手势内创建/恢复上下文
+      setTimeout(sync, 220);
+    }
+    ['pointerdown', 'touchstart', 'click', 'keydown'].forEach(function (t) {
+      document.addEventListener(t, unlock, { passive: true });
+    });
     setInterval(sync, 1000);
     sync();
   })();
