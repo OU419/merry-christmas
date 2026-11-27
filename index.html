@@ -200,6 +200,7 @@
   var spin = 0, spinV = 1.05, BUILD_ANG = 0;
   var growT = 0, growDone = false, starPop = 0, growAcc = 0, settle = 0, g0 = null, FRAMES = 0;
   var quality = 2, fpsAvg = 60, qHold = 1, huge = false;   // 2=全效 1=精简 0=最省
+  var resMul = 1, resCd = 0;                               // 分辨率系数（冲 120fps 用）
 
   var cam = { az: 0.10, el: 0.10, zoom: 1.20, look: -TH / 2 };
   var tgt = { az: 0.10, el: 0.10, zoom: 1.20, look: -TH / 2 };
@@ -575,7 +576,7 @@
     var want = Math.min(3, window.devicePixelRatio || 1);
     var budget = small ? 3.4e6 : 8.3e6;      // 桌面最高 4K（3840×2160）
     while (want > 1 && W * H * want * want > budget) want -= 0.25;
-    DPR = want;
+    DPR = Math.max(0.6, want * resMul);
     huge = (W * DPR * H * DPR) > 5.0e6;      // 超清时关掉最贵的两层
 
     var cs = [cv, scn, tcv];
@@ -1669,9 +1670,16 @@
     // 自适应画质：低于 38fps 降档，稳定高于 54fps 再回升
     fpsAvg = fpsAvg * 0.92 + (1 / dt) * 0.08;
     qHold -= dt;
+    resCd -= dt;
     if (qHold <= 0) {
       if (fpsAvg < 38 && quality > 0) { quality--; qHold = 3; }
       else if (fpsAvg > 54 && quality < 2) { quality++; qHold = 7; }
+    }
+    // 已经降到最省还不够流畅，就降渲染分辨率（这样 120Hz 屏也能跑满帧）
+    if (fpsAvg < 45 && quality === 0 && resMul > 0.7 && resCd <= 0) {
+      resMul = Math.max(0.7, resMul - 0.15);
+      resCd = 15;
+      resize();
     }
 
     if (!document.hidden) growAcc += dt * 1000;
@@ -2095,7 +2103,7 @@
                growT: growT, done: growDone, star: starPop, settle: settle,
                az: cam.az, el: cam.el, zoom: cam.zoom, look: cam.look,
                rot: ROT, spin: spin, spinV: spinV,
-               lights: LIGHTS.length, codeSpeed: +codeSpeed.toFixed(2), fx: sparks.length, frames: FRAMES, dpr: DPR, huge: huge, quality: quality, fps: Math.round(fpsAvg), music: Music.api() };
+               lights: LIGHTS.length, codeSpeed: +codeSpeed.toFixed(2), fx: sparks.length, frames: FRAMES, dpr: DPR, resMul: +resMul.toFixed(2), huge: huge, quality: quality, fps: Math.round(fpsAvg), music: Music.api() };
     }
   };
 
