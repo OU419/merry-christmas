@@ -199,7 +199,7 @@
   var PC = 1, PS = 0, ROT = 0;
   var spin = 0, spinV = 1.05, BUILD_ANG = 0;
   var growT = 0, growDone = false, starPop = 0, growAcc = 0, settle = 0, g0 = null, FRAMES = 0;
-  var quality = 2, fpsAvg = 60, qHold = 1;   // 2=全效 1=精简 0=最省
+  var quality = 2, fpsAvg = 60, qHold = 1, huge = false;   // 2=全效 1=精简 0=最省
 
   var cam = { az: 0.10, el: 0.10, zoom: 1.20, look: -TH / 2 };
   var tgt = { az: 0.10, el: 0.10, zoom: 1.20, look: -TH / 2 };
@@ -572,11 +572,11 @@
     H = Math.max(320, window.innerHeight);
     small = W < 720;
     // 手机给到 3 倍像素密度，画面才不糊；再用像素预算兜住性能
-    var want = Math.min(small ? 3 : 2, window.devicePixelRatio || 1);
-    if (small) {
-      while (want > 1.25 && W * H * want * want > 3.4e6) want -= 0.25;
-    }
+    var want = Math.min(3, window.devicePixelRatio || 1);
+    var budget = small ? 3.4e6 : 8.3e6;      // 桌面最高 4K（3840×2160）
+    while (want > 1 && W * H * want * want > budget) want -= 0.25;
     DPR = want;
+    huge = (W * DPR * H * DPR) > 5.0e6;      // 超清时关掉最贵的两层
 
     var cs = [cv, scn, tcv];
     for (var k = 0; k < 3; k++) {
@@ -614,6 +614,7 @@
     buildEmbers();
     buildFlies();
     buildPearls();
+    buildTreeBits();
     buildCode();
     buildSnow();
     buildStars();
@@ -658,7 +659,7 @@
 
   /* 六芒雪花晶体贴图 */
   function makeCrystal(seed) {
-    var n = 96, c = document.createElement('canvas');
+    var n = 160, c = document.createElement('canvas');
     c.width = c.height = n;
     var g = c.getContext('2d');
     var cx = n / 2, R = n * 0.41;
@@ -690,9 +691,6 @@
     g.beginPath();
     g.arc(0, 0, R * 0.12, 0, TAU);
     g.stroke();
-    g.globalCompositeOperation = 'lighter';
-    g.globalAlpha = 0.35;
-    g.drawImage(c, -cx, -cx);
     return c;
   }
   var CRY = [makeCrystal(0), makeCrystal(1), makeCrystal(2)];
@@ -1012,6 +1010,106 @@
     g.globalAlpha = 1;
   }
 
+  /* ================= 树内新增：星形挂件 + 流苏冰凌 ================= */
+  function makeStarOrn(rgb) {
+    var n = 144, c = document.createElement('canvas');
+    c.width = c.height = n;
+    var g = c.getContext('2d');
+    var cx = n / 2, R = n * 0.42, r = R * 0.44;
+    g.translate(cx, cx);
+    var grd = g.createRadialGradient(0, 0, 0, 0, 0, R);
+    grd.addColorStop(0, 'rgba(255,250,236,0.95)');
+    grd.addColorStop(0.5, 'rgba(' + rgb + ',0.8)');
+    grd.addColorStop(1, 'rgba(' + rgb + ',0.06)');
+    g.fillStyle = grd;
+    g.beginPath();
+    for (var i = 0; i < 10; i++) {
+      var ang = -Math.PI / 2 + i * Math.PI / 5;
+      var rad = (i % 2 === 0) ? R : r;
+      var x = Math.cos(ang) * rad, y = Math.sin(ang) * rad;
+      if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+    }
+    g.closePath();
+    g.fill();
+    return c;
+  }
+  function makeIcicle(rgb) {
+    var w = 20, h = 110, c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    var g = c.getContext('2d');
+    var grd = g.createLinearGradient(0, 0, 0, h);
+    grd.addColorStop(0, 'rgba(' + rgb + ',0.85)');
+    grd.addColorStop(0.55, 'rgba(' + rgb + ',0.3)');
+    grd.addColorStop(1, 'rgba(' + rgb + ',0)');
+    g.fillStyle = grd;
+    g.beginPath();
+    g.moveTo(w / 2 - 3.2, 0);
+    g.lineTo(w / 2 + 3.2, 0);
+    g.lineTo(w / 2, h);
+    g.closePath();
+    g.fill();
+    return c;
+  }
+  var STAR_ORN = [makeStarOrn('255,216,152'), makeStarOrn('255,238,208')];
+  var ICI_SPR = makeIcicle('255,234,204');
+  var STA = [], ICI = [];
+
+  function buildTreeBits() {
+    STA = []; ICI = [];
+    var nS = small ? 9 : 18;
+    for (var i = 0; i < nS; i++) {
+      var t = 0.08 + Math.random() * 0.76;
+      STA.push({
+        y: -TH / 2 + t * TH,
+        a: Math.random() * TAU,
+        r: R0 * Math.pow(1 - t, 0.95) * 1.05,
+        s: rnd(9, 17),
+        ph: Math.random() * TAU,
+        sp: rnd(0.5, 1.3),
+        spr: STAR_ORN[(Math.random() * 2) | 0]
+      });
+    }
+    var nI = small ? 12 : 24;
+    for (var j = 0; j < nI; j++) {
+      var t2 = 0.1 + Math.random() * 0.72;
+      ICI.push({
+        y: -TH / 2 + t2 * TH,
+        a: Math.random() * TAU,
+        r: R0 * Math.pow(1 - t2, 0.95) * 1.03,
+        len: rnd(24, 52),
+        ph: Math.random() * TAU
+      });
+    }
+  }
+
+  function drawTreeBits(g) {
+    var p = { x: 0, y: 0, k: 0, z: 0 }
+    var i, d, v;
+    for (i = 0; i < ICI.length; i++) {
+      d = ICI[i];
+      v = visY(d.y);
+      if (!v) continue;
+      P(d.r * Math.cos(d.a + ROT), d.y, d.r * Math.sin(d.a + ROT), p);
+      var len = d.len * (p.k / S) * v;
+      var w = len * 0.22;
+      g.globalAlpha = clamp(v * (0.30 + 0.22 * Math.sin(time * 1.2 + d.ph)), 0, 1);
+      g.drawImage(ICI_SPR, p.x - w, p.y, w * 2, len);
+    }
+    g.globalAlpha = 1;
+    for (i = 0; i < STA.length; i++) {
+      var s = STA[i];
+      v = visY(s.y);
+      if (!v) continue;
+      P(s.r * Math.cos(s.a + ROT), s.y, s.r * Math.sin(s.a + ROT), p);
+      var dep = 0.45 + 0.55 * clamp((p.z / R0 + 1) / 2, 0, 1);
+      var tw = 0.62 + 0.38 * Math.sin(time * s.sp * 1.7 + s.ph);
+      var rad = s.s * (p.k / S) * (0.7 + 0.5 * dep) * tw;
+      g.globalAlpha = clamp(v * (0.5 + 0.45 * dep) * tw, 0, 1);
+      g.drawImage(s.spr, p.x - rad, p.y - rad, rad * 2, rad * 2);
+    }
+    g.globalAlpha = 1;
+  }
+
   function drawLights(g) {
     var p = { x: 0, y: 0, k: 0, z: 0 };
     for (var i = 0; i < LIGHTS.length; i += (quality >= 1 ? 1 : 2)) {
@@ -1235,6 +1333,7 @@
     drawLights(tctx);
     drawGarland(tctx);
     drawPearls(tctx);
+    drawTreeBits(tctx);
     drawTreeBubbles(tctx);
     drawEmbers(tctx);
     drawFlies(tctx);
@@ -1349,7 +1448,7 @@
     sctx.globalCompositeOperation = 'lighter';
     sctx.globalAlpha = 0.30;
     sctx.drawImage(bcv, 0, 0, W, H);
-    if (!small && quality >= 2) {
+    if (!small && quality >= 2 && !huge) {
       sctx.globalAlpha = 0.11;
       sctx.drawImage(bcv, -W * 0.08, -H * 0.08, W * 1.16, H * 1.16);
     }
@@ -1404,7 +1503,7 @@
 
   function drawSnow() {
     sctx.save();
-    sctx.globalCompositeOperation = 'lighter';
+    sctx.globalCompositeOperation = 'source-over';
     for (var k = 0; k < snow.length; k += (quality >= 1 ? 1 : 2)) {
       var s = snow[k];
       var sx = s.x + Math.sin(time * s.sw + s.ph) * s.amp;
@@ -1640,7 +1739,7 @@
     ctx.fillStyle = grade;
     ctx.fillRect(0, 0, W, H);
     ctx.restore();
-    if (grainPat && !small && quality >= 2) {
+    if (grainPat && !small && quality >= 2 && !huge) {
       ctx.save();
       ctx.globalCompositeOperation = 'overlay';
       ctx.globalAlpha = 0.055;
@@ -1996,7 +2095,7 @@
                growT: growT, done: growDone, star: starPop, settle: settle,
                az: cam.az, el: cam.el, zoom: cam.zoom, look: cam.look,
                rot: ROT, spin: spin, spinV: spinV,
-               lights: LIGHTS.length, codeSpeed: +codeSpeed.toFixed(2), fx: sparks.length, frames: FRAMES, dpr: DPR, quality: quality, fps: Math.round(fpsAvg), music: Music.api() };
+               lights: LIGHTS.length, codeSpeed: +codeSpeed.toFixed(2), fx: sparks.length, frames: FRAMES, dpr: DPR, huge: huge, quality: quality, fps: Math.round(fpsAvg), music: Music.api() };
     }
   };
 
