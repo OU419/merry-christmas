@@ -494,7 +494,7 @@
   /* ================= 点云树 ================= */
   function buildTree() {
     LIGHTS = []; GAR = []; ORN = [];
-    var LV = small ? 14 : 23, BR = small ? 24 : 44;
+    var LV = small ? 10 : 23, BR = small ? 17 : 44;
     for (var L = 0; L < LV; L++) {
       var t = (L + 0.7) / (LV + 0.3);
       var rad = R0 * Math.pow(1 - t, 0.95);
@@ -575,10 +575,10 @@
     H = Math.max(320, window.innerHeight);
     small = W < 720;
     // 手机给到 3 倍像素密度，画面才不糊；再用像素预算兜住性能
-    var want = Math.min(3, window.devicePixelRatio || 1);
-    var budget = small ? 3.4e6 : 8.3e6;      // 桌面最高 4K（3840×2160）
-    while (want > 1 && W * H * want * want > budget) want -= 0.25;
-    DPR = Math.max(0.6, want * resMul);
+    var want = Math.min(small ? 3.5 : 3, window.devicePixelRatio || 1);
+    var budget = small ? 4.4e6 : 8.3e6;      // 手机尽量贴着原生分辨率，桌面到 4K
+    while (want > 1.2 && W * H * want * want > budget) want -= 0.25;
+    DPR = want;
     huge = (W * DPR * H * DPR) > 5.0e6;      // 超清时关掉最贵的两层
 
     var cs = [cv, scn, tcv];
@@ -586,8 +586,9 @@
       cs[k].width = Math.round(W * DPR);
       cs[k].height = Math.round(H * DPR);
     }
-    bcv.width = Math.max(64, Math.round(W * DPR / 5));
-    bcv.height = Math.max(64, Math.round(H * DPR / 5));
+    var bdiv = small ? 8 : 5;
+    bcv.width = Math.max(48, Math.round(W * DPR / bdiv));
+    bcv.height = Math.max(48, Math.round(H * DPR / bdiv));
     cv.style.width = W + 'px';
     cv.style.height = H + 'px';
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -618,6 +619,7 @@
     buildFlies();
     buildPearls();
     buildTreeBits();
+    buildFStars();
     buildCode();
     buildSnow();
     buildStars();
@@ -700,7 +702,7 @@
 
   function buildSnow() {
     snow = [];
-    var n = small ? 180 : 430;
+    var n = small ? 110 : 430;
     for (var k = 0; k < n; k++) {
       var dep = Math.random();
       var big = dep > 0.82;
@@ -1059,7 +1061,7 @@
 
   function buildTreeBits() {
     STA = []; ICI = [];
-    var nS = small ? 9 : 18;
+    var nS = small ? 7 : 18;
     for (var i = 0; i < nS; i++) {
       var t = 0.08 + Math.random() * 0.76;
       STA.push({
@@ -1072,7 +1074,7 @@
         spr: STAR_ORN[(Math.random() * 2) | 0]
       });
     }
-    var nI = small ? 12 : 24;
+    var nI = small ? 9 : 24;
     for (var j = 0; j < nI; j++) {
       var t2 = 0.1 + Math.random() * 0.72;
       ICI.push({
@@ -1111,6 +1113,60 @@
       g.drawImage(s.spr, p.x - rad, p.y - rad, rad * 2, rad * 2);
     }
     g.globalAlpha = 1;
+  }
+
+  /* 缠绕树体的光带 + 空中漂浮的小星星 */
+  function drawRibbon(g) {
+    if (growT < 0.35) return;
+    var n = 96, p = { x: 0, y: 0, k: 0, z: 0 };
+    g.beginPath();
+    for (var i = 0; i <= n; i++) {
+      var t = (i / n) * Math.min(1, growT);
+      var a = t * TAU * 2.2 + time * 0.22;
+      var r = R0 * Math.pow(1 - t, 0.95) * 1.06;
+      var y = -TH / 2 + t * TH;
+      P(r * Math.cos(a + ROT), y, r * Math.sin(a + ROT), p);
+      if (i === 0) g.moveTo(p.x, p.y); else g.lineTo(p.x, p.y);
+    }
+    g.strokeStyle = 'rgba(255,220,200,0.16)';
+    g.lineWidth = Math.max(1.4, S * 0.013);
+    g.stroke();
+    g.strokeStyle = 'rgba(255,200,186,0.07)';
+    g.lineWidth = Math.max(4, S * 0.055);
+    g.stroke();
+  }
+  var FSTAR = [];
+  function buildFStars() {
+    FSTAR = [];
+    var n = small ? 10 : 20;
+    for (var i = 0; i < n; i++) {
+      FSTAR.push({
+        x: Math.random() * W, y: Math.random() * H,
+        s: rnd(4, 9), ph: Math.random() * TAU, sp: rnd(0.25, 0.8),
+        vx: rnd(-6, 6), vy: rnd(-10, -2),
+        spr: STAR_ORN[(Math.random() * 2) | 0]
+      });
+    }
+  }
+  function updateFStars(dt) {
+    for (var i = 0; i < FSTAR.length; i++) {
+      var f2 = FSTAR[i];
+      f2.x += f2.vx * dt; f2.y += f2.vy * dt;
+      if (f2.y < -30) { f2.y = H + 20; f2.x = Math.random() * W; }
+      if (f2.x < -20) f2.x = W + 10; else if (f2.x > W + 20) f2.x = -10;
+    }
+  }
+  function drawFStars() {
+    sctx.save();
+    sctx.globalCompositeOperation = 'lighter';
+    for (var i = 0; i < FSTAR.length; i++) {
+      var f2 = FSTAR[i];
+      var tw = 0.35 + 0.65 * Math.abs(Math.sin(time * f2.sp + f2.ph));
+      var rad = f2.s * (0.75 + 0.35 * tw);
+      sctx.globalAlpha = 0.5 * tw;
+      sctx.drawImage(f2.spr, f2.x - rad, f2.y - rad, rad * 2, rad * 2);
+    }
+    sctx.restore();
   }
 
   function drawLights(g) {
@@ -1337,6 +1393,7 @@
     drawGarland(tctx);
     drawPearls(tctx);
     drawTreeBits(tctx);
+    drawRibbon(tctx);
     drawTreeBubbles(tctx);
     drawEmbers(tctx);
     drawFlies(tctx);
@@ -1679,12 +1736,7 @@
       if (fpsAvg < loT && quality > 0) { quality--; qHold = 3; }
       else if (fpsAvg > hiT && quality < 2) { quality++; qHold = 7; }
     }
-    // 已经降到最省还不够流畅，就降渲染分辨率（这样 120Hz 屏也能跑满帧）
-    if (fpsAvg < refresh * 0.78 && quality === 0 && resMul > 0.7 && resCd <= 0) {
-      resMul = Math.max(0.7, resMul - 0.15);
-      resCd = 15;
-      resize();
-    }
+    // 不再降分辨率（降分辨率会让雪花和细线发虚），只靠减少元素数量保帧
 
     if (!document.hidden) growAcc += dt * 1000;
     var gp = clamp(growAcc / GROW_MS, 0, 1);
@@ -1712,9 +1764,11 @@
     drawGround();
     updateSnow(dt);
     updateEmbers(dt);
+    updateFStars(dt);
     updateMeteor(dt);
     drawMeteor();
     drawSnow();
+    drawFStars();
     updateFloat(dt);
     drawFloat(sctx);
     drawForeground();
