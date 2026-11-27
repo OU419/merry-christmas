@@ -620,6 +620,7 @@
     buildPearls();
     buildTreeBits();
     buildFStars();
+    buildBits();
     buildCode();
     buildSnow();
     buildStars();
@@ -1169,6 +1170,72 @@
     sctx.restore();
   }
 
+  /* ===== 电子感（原创混合，不照搬）：数据脉冲沿螺旋上行 / 全息底盘 / 二进制浮字 ===== */
+  function drawComets(g) {
+    var n = small ? 2 : 3, p = { x: 0, y: 0, k: 0, z: 0 };
+    for (var c = 0; c < n; c++) {
+      var head = (time * 0.115 + c / n) % 1;
+      for (var k = 0; k < 9; k++) {
+        var t = head - k * 0.013;
+        if (t < 0) t += 1;
+        if (t > growT) continue;
+        var a = t * TAU * 5.2;
+        var r = R0 * Math.pow(1 - t, 0.95) * 1.03;
+        var y = -TH / 2 + t * TH;
+        P(r * Math.cos(a + ROT), y, r * Math.sin(a + ROT), p);
+        var al = (1 - k / 9);
+        var rad = (1.6 + k * 0.85) * (p.k / S) * 2.4;
+        g.globalAlpha = al * 0.85;
+        g.drawImage(k === 0 ? SP.white : SP.cream, p.x - rad, p.y - rad, rad * 2, rad * 2);
+      }
+    }
+    g.globalAlpha = 1;
+  }
+  function drawHoloBase(g) {
+    var v = visY(-TH / 2);
+    if (v <= 0) return;
+    var p = { x: 0, y: 0, k: 0, z: 0 }, N = 30;
+    var y = -TH / 2 - 0.015, r = R0 * 1.14;
+    for (var i = 0; i < N; i++) {
+      var a = i / N * TAU - time * 0.25;
+      P(r * Math.cos(a + ROT), y, r * Math.sin(a + ROT), p);
+      var front = p.z >= 0;
+      var al = (front ? 0.34 : 0.09) * v;
+      var rad = (front ? 2.0 : 1.4) * (p.k / S) * 2.2;
+      g.globalAlpha = al;
+      g.drawImage(SP.cream, p.x - rad, p.y - rad, rad * 2, rad * 2);
+    }
+    g.globalAlpha = 1;
+  }
+  var BITS = [];
+  function buildBits() {
+    BITS = [];
+    var n = small ? 8 : 16;
+    for (var i = 0; i < n; i++) {
+      var t = 0.08 + Math.random() * 0.8;
+      BITS.push({
+        a: Math.random() * TAU, r: R0 * Math.pow(1 - t, 0.95) * rnd(0.45, 0.95),
+        y: -TH / 2 + t * TH, ph: Math.random() * TAU, sp: rnd(0.4, 1.1),
+        ch: Math.random() < 0.5 ? '0' : '1', s: rnd(7, 11)
+      });
+    }
+  }
+  function drawBits(g) {
+    var p = { x: 0, y: 0, k: 0, z: 0 };
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    for (var i = 0; i < BITS.length; i++) {
+      var b = BITS[i];
+      var v = visY(b.y);
+      if (!v) continue;
+      P(b.r * Math.cos(b.a + ROT), b.y, b.r * Math.sin(b.a + ROT), p);
+      var tw = 0.25 + 0.55 * Math.abs(Math.sin(time * b.sp + b.ph));
+      g.font = Math.round(b.s * (p.k / S) * 2) + 'px ui-monospace,Consolas,monospace';
+      g.fillStyle = 'rgba(255,226,206,' + (tw * 0.32 * v).toFixed(3) + ')';
+      g.fillText(b.ch, p.x, p.y);
+    }
+  }
+
   function drawLights(g) {
     var p = { x: 0, y: 0, k: 0, z: 0 };
     for (var i = 0; i < LIGHTS.length; i += (quality >= 1 ? 1 : 2)) {
@@ -1394,6 +1461,9 @@
     drawPearls(tctx);
     drawTreeBits(tctx);
     drawRibbon(tctx);
+    drawHoloBase(tctx);
+    drawBits(tctx);
+    drawComets(tctx);
     drawTreeBubbles(tctx);
     drawEmbers(tctx);
     drawFlies(tctx);
